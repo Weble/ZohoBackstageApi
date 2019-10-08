@@ -6,6 +6,7 @@ use PHPUnit\Framework\TestCase;
 use Weble\ZohoBackstageApi\Client;
 use Weble\ZohoBackstageApi\Models\Event;
 use Weble\ZohoBackstageApi\Models\EventMetaDetails;
+use Weble\ZohoBackstageApi\Models\Order;
 use Weble\ZohoBackstageApi\Models\Portal;
 use Weble\ZohoBackstageApi\Models\TicketClass;
 use Weble\ZohoBackstageApi\Models\TicketContainer;
@@ -161,6 +162,33 @@ class ApiTest extends TestCase
             $this->assertArrayHasKey('quantity', $model->toArray());
             $this->assertArrayHasKey('unlimited', $model->toArray());
         });
+    }
 
+    /**
+     * @test
+     */
+    public function canCreateOrder()
+    {
+        /** @var Portal $portal */
+        $portal = self::$zoho->portals->getList()->first();
+         /** @var Event $event */
+        $event = $portal->events->live()->first();
+
+        /** @var TicketClass $classes */
+        $class = $event->tickets->ticketClasses()->first();
+
+        $orderToBeCreated = new Order();
+        $orderToBeCreated
+            ->withTicketClass($class);
+
+        $order = $portal->orders->create($orderToBeCreated);
+        $this->assertEquals(Order::class, get_class($order));
+
+        $order->boughtBy('testapi@example.com', 'Test', 'Api', true);
+
+        $order = $portal->orders->update($order);
+        $this->assertEquals(Order::class, get_class($order));
+
+        dd($order->toArray());
     }
 }

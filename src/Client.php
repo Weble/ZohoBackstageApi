@@ -150,7 +150,7 @@ class Client
      * @return array|mixed|string
      * @throws ApiError
      */
-    protected function processResult(ResponseInterface $response)
+    public function processResult(ResponseInterface $response)
     {
         // All ok, probably not json, like PDF?
         if ($response->getStatusCode() < 200 || $response->getStatusCode() > 299) {
