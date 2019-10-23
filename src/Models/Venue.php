@@ -10,32 +10,28 @@ use Weble\ZohoBackstageApi\Modules\Tickets;
 
 
 /**
- * Class Event
+ * Class Venue
  * @package Weble\ZohoBackstageApi\Models
  *
  * @property-read Tickets $tickets
  */
-class Event extends Model implements HasTranslations
+class Venue extends Model implements HasTranslations
 {
     use HasTranslationsTrait;
-
-    protected $casts = [
-        'startDate' => 'datetime',
-        'endDate' => 'datetime',
-        'timezone' => 'timezone'
-    ];
 
     public function translatedFields(): array
     {
         return [
             'name',
-            'description',
-            'summary'
+            'steet',
+            'townOrCity',
+            'state',
+            'countryName',
         ];
     }
 
     public function getName(): string
     {
-        return 'event';
+        return 'venue';
     }
 }

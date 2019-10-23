@@ -3,7 +3,6 @@
 
 namespace Weble\ZohoBackstageApi\Modules;
 
-
 use Weble\ZohoBackstageApi\Models\Order;
 
 class Orders extends Module
@@ -21,7 +20,7 @@ class Orders extends Module
 
     public function getEndpoint(): string
     {
-        return 'currentOrders';
+        return 'eventOrders';
     }
 
     public function create(Order $order, $params = []): Order
@@ -30,29 +29,23 @@ class Orders extends Module
             $params['browserTimezone'] = $this->tz;
         }
 
-
         $data = $this->client->processResult(
             $this->client->call($this->getEndpoint(), 'POST', [
                 'query' => $params,
                 'json' => [
-                    'currentOrder' => $order->toArray()
+                    'placeOrder' => $order->toArray()
                 ]
             ])
         );
 
-
-        return new Order($data['currentOrder']);
+        return new Order($data['order']);
     }
 
-    public function update(Order $order, $params = []): Order
+    public function update(Order $order, $params = []): CompletedOrder
     {
         if (!isset($params['browserTimezone'])) {
             $params['browserTimezone'] = $this->tz;
         }
-
-        $order->status = 2;
-
-        dd(json_encode(['currentOrder' => $order->toArray()]));
 
         $data = $this->client->processResult(
             $this->client->call($this->getEndpoint() . '/' . $order->getId(), 'PUT', [
@@ -63,7 +56,7 @@ class Orders extends Module
             ])
         );
 
-        return new Order($data['currentOrder']);
+        return new CompletedOrder($data);
     }
 
     public function getName(): string

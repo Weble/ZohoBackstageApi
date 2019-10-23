@@ -5,8 +5,9 @@ namespace Weble\ZohoBackstageApi\Models;
 use Tightenco\Collect\Contracts\Support\Arrayable;
 use Weble\ZohoBackstageApi\Client;
 use Weble\ZohoBackstageApi\Mixins\ProvidesModules;
+use Weble\ZohoBackstageApi\OAuthClient;
 
-abstract class Model implements \JsonSerializable, Arrayable
+class Model implements \JsonSerializable, Arrayable
 {
     use ProvidesModules;
 
@@ -19,20 +20,44 @@ abstract class Model implements \JsonSerializable, Arrayable
      */
     protected $data = [];
 
-    /**
-     * @var Client
-     */
-    protected $client;
+    protected $casts = [];
+
+    /** @var OAuthClient */
+    protected $oAuthClient;
+
+    /** @var string string */
+    protected $baseUrl = '';
 
     public function __construct($data = [], $baseUrl = null)
     {
-        $baseUrl = Client::getInstance()->getBaseUri() . $baseUrl;
+        $this->baseUrl = $baseUrl;
 
         $this->data = $data;
-        $this->client = Client::getInstance($baseUrl);
-    }
+        $this->oAuthClient = OAuthClient::getInstance();
 
-    abstract public function getName(): string;
+        $castedFields = array_keys($this->casts);
+        if (count($castedFields) > 0) {
+            foreach ($this->data as $key => $value) {
+                if (in_array($key, $castedFields)) {
+                    switch ($this->casts[$key]) {
+                        case 'datetime':
+                        case 'date':
+                            $timezone = array_keys($this->casts, 'timezone');
+                            if ($timezone) {
+                                $timezone = array_shift($timezone);
+                            }
+                            $this->data[$key] = (new \DateTime($value));
+
+                            if ($timezone && isset($this->data[$timezone])) {
+                                $this->data[$key]->setTimeZone(new \DateTimeZone($this->data[$timezone]));
+                                unset($this->data[$timezone]);
+                            }
+                            break;
+                    }
+                }
+            }
+        }
+    }
 
     public function __get($name)
     {
@@ -41,7 +66,7 @@ abstract class Model implements \JsonSerializable, Arrayable
         }
 
         if ($this->hasModule($name)) {
-            return $this->createModule($name);
+            return $this->createModule($name)->setBaseUrlForEndpoint($this->baseUrl);
         }
     }
 

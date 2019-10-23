@@ -3,8 +3,45 @@
 
 namespace Weble\ZohoBackstageApi\Models;
 
+/**
+ * When first creating an order, the required structure is
+ * {
+        "totalAmount": 0,
+        "discountAmount": 0,
+        "taxAmount": 0,
+        "isTaxApplied": false,
+        "promoCode": "",
+        "paymentHostPageId": null,
+        "checkoutNewPaymentUrl": null,
+        "status": 1,
+        "appRedirectUrl": null,
+        "createdBy": null,
+        "lastModifiedBy": null,
+        "createdTime": null,
+        "lastModifiedTime": null,
+        "currentBrowserTime": null,
+        "ticketCarts": [
+        {
+            "ticketId": null,
+            "ticketClass": "433000000041646",
+            "ticketAssignee": null
+        }],
+        "ticketBuyer": null,
+        "ticketContainer": "433000000041643"
+    }
+ *
+ * @package Weble\ZohoBackstageApi\Models
+ *
+ * @property array $ticketCarts
+ * @property string|object $ticketContainer
+ */
 class Order extends Model
 {
+    /**
+     * @var TicketCart[]
+     */
+    protected $ticketCarts = [];
+
     public function __construct($data = [], $baseUrl = null)
     {
         $emptyData = [
@@ -14,8 +51,6 @@ class Order extends Model
             'taxAmount' => 0,
             'ticketBuyer' => null,
             'ticketCarts' => [],
-            'ticketAssignee' => null,
-            'ticketClass' => null,
             'ticketId' => null,
             'ticketContainer' => null,
             'totalAmount' => 0
@@ -26,48 +61,18 @@ class Order extends Model
         parent::__construct($data, $baseUrl);
     }
 
-    public function withTicketClass(TicketClass $class): self
+    public function setTicketContainer(TicketContainer $container): self
     {
-        $this->ticketContainer = $class->ticketContainer()->id;
-        $this->ticketCarts = [
-            [
-                'ticketId' => null,
-                'ticketAssignee' => null,
-                'ticketClass' => $class->id
-            ]
-        ];
-
+        $this->ticketContainer = $container;
         return $this;
     }
 
-    public function boughtBy(string $email, string $firstName = '', string $lastName = '', bool $assign = true): self
+    public function addTicket(TicketClass $class): self
     {
-        $ticketBuyer = [
-            'emailId' => $email,
-            'lastName' => $lastName,
-            'name' => $firstName
-        ];
+        $cart = new TicketCart();
+        $cart->ticketClass = $class;
 
-        $this->ticketBuyer = $ticketBuyer;
-
-        if ($assign) {
-            foreach ($this->ticketCarts as $ticketCart) {
-                $ticketCart['ticketAssignee'] = $ticketBuyer;
-            }
-        }
-
-        return $this;
-    }
-
-    public function forAssignee(string $email, string $firstName = '', string $lastName = ''): self
-    {
-        foreach ($this->ticketCarts as $ticketCart) {
-            $ticketCart['ticketAssignee'] = [
-                'emailId' => $email,
-                'lastName' => $lastName,
-                'name' => $firstName
-            ];
-        }
+        $this->ticketCarts[] = $cart;
 
         return $this;
     }
@@ -75,5 +80,21 @@ class Order extends Model
     public function getName(): string
     {
         return 'currentOrder';
+    }
+
+    public function toArray()
+    {
+        $data = parent::toArray();
+
+        $data['ticketContainer'] = $this->ticketContainer->getId();
+
+        $data['ticketCarts'] = [];
+
+        /** @var TicketCart $cart */
+        foreach ($this->ticketCarts as $cart) {
+            $data['ticketCarts'][] = $cart->toArray();
+        }
+
+        return $data;
     }
 }

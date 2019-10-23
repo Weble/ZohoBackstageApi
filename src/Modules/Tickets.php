@@ -4,6 +4,7 @@
 namespace Weble\ZohoBackstageApi\Modules;
 
 
+use GuzzleHttp\Exception\RequestException;
 use Tightenco\Collect\Support\Collection;
 use Weble\ZohoBackstageApi\Client;
 use Weble\ZohoBackstageApi\Models\Event;
@@ -13,11 +14,11 @@ use Weble\ZohoBackstageApi\Models\TicketContainer;
 class Tickets extends Module
 {
     /**
-     * @var string
+     * @var string|null
      */
     private $portalId;
     /**
-     * @var string
+     * @var string|null
      */
     private $eventId;
 
@@ -103,9 +104,13 @@ class Tickets extends Module
             $this->setEventId($eventId);
         }
 
-        $this->details = collect($this->getClient()->get($this->getEndpoint(), $this->eventId, [
-            'portalId' => $this->portalId
-        ]));
+        try {
+            $this->details = collect($this->getClient()->get($this->getEndpoint(), $this->eventId, [
+                'portalId' => $this->portalId
+            ]));
+        } catch (RequestException $e) {
+            $this->details = collect([]);
+        }
 
         return $this->details;
     }

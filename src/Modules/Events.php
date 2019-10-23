@@ -5,74 +5,90 @@ namespace Weble\ZohoBackstageApi\Modules;
 
 
 use Tightenco\Collect\Support\Collection;
-use Weble\ZohoBackstageApi\Client;
+use Weble\ZohoBackstageApi\Mixins\WithTranslationsData;
 use Weble\ZohoBackstageApi\Models\Event;
-use Weble\ZohoBackstageApi\Models\EventMetaDetails;
+use Weble\ZohoBackstageApi\Models\Venue;
 
 class Events extends Module
 {
-    const TYPE_LIVE = 'live';
-    const TYPE_COMPLETED = 'completed';
-
-    /** @var string  */
-    private $type = self::TYPE_LIVE;
-
-    public function __construct(Client $client)
-    {
-        parent::__construct($client);
-    }
+    use WithTranslationsData;
 
     public function getEndpoint(): string
     {
-        return 'eventsMeta';
-    }
-
-    public function live(): Collection
-    {
-        return $this->getList([
-            'type' => self::TYPE_LIVE
-        ]);
-    }
-
-    public function completed(): Collection
-    {
-        return $this->getList([
-            'type' => self::TYPE_COMPLETED
-        ]);
+        return 'events';
     }
 
     public function getList($params = [])
     {
-        if (!isset($params['type'])) {
-            $params['type'] = self::TYPE_LIVE;
-        }
+        $list = $this->oAuthClient->getList($this->baseUrl.$this->getEndpoint());
+        $events = $this->createCollectionFromList($list, 'events');
 
-        return parent::getList($params);
+        $venues = $this->extractVenuesFromList($list);
+
+        $eventLanguages = $this->extractLanguagesFrom($list, 'eventLanguages');
+        $defaultLanguage = $this->extractDefaultLanguageFrom($list, 'eventLanguages');
+
+        $eventTranslations = (new Collection($list['eventTranslations']))->keyBy('eventLanguage')->toArray();
+
+        $events = $events->map(function (Event $event) use ($venues, $defaultLanguage, $eventLanguages, $eventTranslations) {
+            $event->setAvailableLanguages($eventLanguages);
+            $event->setDefaultLanguage($defaultLanguage);
+            $event->setTranslationsFrom($eventTranslations);
+
+            $event->venue = $venues->get($event->getId());
+
+            return $event;
+        });
+
+        return $events;
     }
 
-    public function details(): EventMetaDetails
+    public function venues()
     {
-        return new EventMetaDetails(
-            $this->client->get('eventsMetaDetails')['meta']
-        );
+        $list = $this->oAuthClient->getList($this->baseUrl.$this->getEndpoint());
+        return $this->extractVenuesFromList($list)->keyBy('id');
+    }
+
+    public function extractVenuesFromList($list): Collection
+    {
+        $venues = $this->createCollectionFromList($list, 'venues', Venue::class);
+
+        $eventLanguages = $this->extractLanguagesFrom($list, 'eventLanguages');
+        $defaultLanguage = $this->extractDefaultLanguageFrom($list, 'eventLanguages');
+
+        $venueTranslations = (new Collection($list['venueTranslations']))->keyBy('eventLanguage')->toArray();
+
+        $venues = $venues->mapWithKeys(function (Venue $venue) use ($defaultLanguage, $eventLanguages, $venueTranslations) {
+            $venue->setAvailableLanguages($eventLanguages);
+            $venue->setDefaultLanguage($defaultLanguage);
+            $venue->setTranslationsFrom($venueTranslations);
+
+            return [$venue->event => $venue];
+        });
+
+        return $venues;
+    }
+
+    public function get($id, array $params = [])
+    {
+        $list = self::getList($params);
+
+        return $list->get($id);
     }
 
     public function getName(): string
     {
-        return 'portals';
+        return 'events';
     }
 
     protected function getResourceKey(): string
     {
-        if ($this->type === self::TYPE_LIVE) {
-            return 'liveEventMetas';
-        }
-
-        return 'completedEventsMetas';
+        return null;
     }
 
     public function getModelClassName(): string
     {
         return Event::class;
     }
+
 }

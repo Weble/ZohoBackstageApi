@@ -5,6 +5,7 @@ namespace Weble\ZohoBackstageApi;
 
 use Weble\ZohoBackstageApi\Mixins\ProvidesModules;
 use Weble\ZohoBackstageApi\Modules\Portals;
+use Weble\ZohoClient\OAuthClient as ZohoOAuthClient;
 
 /**
  * Class ZohoBackstage
@@ -17,30 +18,30 @@ class ZohoBackstage
     use ProvidesModules;
 
     /**
-     * @var string
+     * @var OAuthClient
      */
-    private $url;
-
-    /**
-     * @var Client
-     */
-    private $client;
+    private $oAuthClient;
 
     /**
      * @var array
      */
-    private $availableModules = [
+    protected $availableModules = [
         'portals' => Portals::class
     ];
 
-    public function __construct(string $url)
+    public function __construct($clientId, $clientSecret, $refreshToken = null)
     {
-        $this->url = $url;
-        $this->client = Client::getInstance($url . Client::ROOT_URI);
+        $this->oAuthClient = OAuthClient::getInstance($clientId, $clientSecret, $refreshToken);
     }
 
     public function __get($name)
     {
         return $this->createModule($name);
+    }
+
+    public function setRegion($region = ZohoOAuthClient::DC_US): self
+    {
+        $this->oAuthClient->setRegion($region);
+        return $this;
     }
 }

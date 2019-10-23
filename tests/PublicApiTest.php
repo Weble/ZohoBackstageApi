@@ -4,10 +4,12 @@ namespace Webleit\ZohoCrmApi\Test;
 
 use PHPUnit\Framework\TestCase;
 use Weble\ZohoBackstageApi\Client;
+use Weble\ZohoBackstageApi\Models\Order;
 use Weble\ZohoBackstageApi\Models\Event;
 use Weble\ZohoBackstageApi\Models\EventMetaDetails;
-use Weble\ZohoBackstageApi\Models\Order;
 use Weble\ZohoBackstageApi\Models\Portal;
+use Weble\ZohoBackstageApi\Models\TicketAssignee;
+use Weble\ZohoBackstageApi\Models\TicketBuyer;
 use Weble\ZohoBackstageApi\Models\TicketClass;
 use Weble\ZohoBackstageApi\Models\TicketContainer;
 use Weble\ZohoBackstageApi\ZohoBackstage;
@@ -16,7 +18,7 @@ use Weble\ZohoBackstageApi\ZohoBackstage;
  * Class ClassNameGeneratorTest
  * @package Webleit\ZohoBooksApi\Test
  */
-class ApiTest extends TestCase
+class PublicApiTest extends TestCase
 {
     /**
      * @var Client
@@ -72,6 +74,21 @@ class ApiTest extends TestCase
 
         $this->assertEquals(EventMetaDetails::class, get_class($details));
         $this->assertGreaterThan(0, $details->cities()->count());
+    }
+
+    /**
+     * @test
+     */
+    public function canGetSingleEvent()
+    {
+        /** @var Portal $portal */
+        $portal = self::$zoho->portals->getList()->first();
+        /** @var Event $event */
+        $event = $portal->events->live()->first();
+        $fetchedEvent = $portal->events->get($event->getId());
+
+        $this->assertTrue($fetchedEvent instanceof Event);
+        $this->assertEquals($event->getId(), $fetchedEvent->getId());
     }
 
     /**
@@ -171,24 +188,50 @@ class ApiTest extends TestCase
     {
         /** @var Portal $portal */
         $portal = self::$zoho->portals->getList()->first();
-         /** @var Event $event */
-        $event = $portal->events->live()->first();
+
+        $events = $portal->events->live();
+
+        $event = null;
+        foreach ($events as $e) {
+            /** @var Event $event */
+            if ($e->tickets->available()) {
+                $event = $e;
+                break;
+            }
+        }
+
+        $this->assertNotNull($event);
 
         /** @var TicketClass $classes */
         $class = $event->tickets->ticketClasses()->first();
+        $container = $event->tickets->ticketContainers()->first();
 
         $orderToBeCreated = new Order();
-        $orderToBeCreated
-            ->withTicketClass($class);
+        $orderToBeCreated->setTicketContainer($container);
+        $orderToBeCreated->addTicket($class);
 
         $order = $portal->orders->create($orderToBeCreated);
         $this->assertEquals(Order::class, get_class($order));
 
-        $order->boughtBy('testapi@example.com', 'Test', 'Api', true);
+        $assignee = new TicketAssignee();
+        $assignee->name = 'Pippo';
+        $assignee->lastName = 'Pluto';
+        $assignee->emailId = 'pippopluto@example.com';
+
+        $buyer = new TicketBuyer();
+        $buyer->name = 'Pippo';
+        $buyer->lastName = 'Pluto';
+        $buyer->emailId = 'pippopluto@example.com';
+
+        foreach ($order->getTickets() as $ticket) {
+            $ticket->assignTo($assignee);
+        }
+
+        $order->boughtBy($buyer);
+        $order->confirm();
 
         $order = $portal->orders->update($order);
-        $this->assertEquals(Order::class, get_class($order));
+        $this->assertEquals(CompletedOrder::class, get_class($order));
 
-        dd($order->toArray());
     }
 }
