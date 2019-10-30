@@ -3,7 +3,9 @@
 namespace Webleit\ZohoCrmApi\Test;
 
 use PHPUnit\Framework\TestCase;
+use Weble\ZohoBackstageApi\Builders\OrderBuilder;
 use Weble\ZohoBackstageApi\Client;
+use Weble\ZohoBackstageApi\Models\Attendee;
 use Weble\ZohoBackstageApi\Models\Order;
 use Weble\ZohoBackstageApi\Models\Event;
 use Weble\ZohoBackstageApi\Models\EventMetaDetails;
@@ -19,11 +21,6 @@ use Weble\ZohoClient\OAuthClient;
 
 class V1ApiTest extends TestCase
 {
-    /**
-     * @var Client
-     */
-    protected static $client;
-
     /**
      * @var ZohoBackstage
      */
@@ -114,5 +111,70 @@ class V1ApiTest extends TestCase
         $this->assertArrayHasKey('latitude', $venue->toArray());
         $this->assertArrayHasKey('longitude', $venue->toArray());
         $this->assertArrayHasKey('country', $venue->toArray());
+    }
+
+    /**
+     * @test
+     */
+    public function canGetSingleEvent()
+    {
+        /** @var Portal $portal */
+        $portal = self::$zoho->portals->getList()->first();
+        /** @var Event $event */
+        $event = $portal->events->getList()->first();
+        $fetchedEvent = $portal->events->get($event->getId());
+
+        $this->assertTrue($fetchedEvent instanceof Event);
+        $this->assertEquals($event->getId(), $fetchedEvent->getId());
+    }
+
+    /**
+     * @test
+     */
+    public function canGetOrder()
+    {
+        /** @var Portal $portal */
+        $portal = self::$zoho->portals->getList()->first();
+
+        $order = $portal->orders->get('433000000100477');
+
+        dd($order->toArray());
+
+        $this->assertEquals(Order::class, get_class($order));
+        $this->assertArrayHasKey('status', $order->toArray());
+        $this->assertArrayHasKey('orderTickets', $order->toArray());
+    }
+
+    /**
+     * @test
+     */
+    public function canCreateOrder()
+    {
+        /** @var Portal $portal */
+        $portal = self::$zoho->portals->getList()->first();
+
+        /** @var Event $event */
+        $event = $portal->events->getList()->first();
+
+        $order = (new OrderBuilder())
+            ->forEvent($event)
+            ->boughtBy('test@example.com')
+            ->assignTo('test@example.com');
+
+        $createdOrder = $portal->orders->create($order);
+
+        $this->assertEquals(Order::class, get_class($createdOrder));
+        $this->assertArrayHasKey('status', $createdOrder->toArray());
+        $this->assertArrayHasKey('attendees', $createdOrder->toArray());
+        $this->assertIsArray($createdOrder->attendees);
+
+        $this->assertGreaterThan(0, count($createdOrder->attendees));
+
+        foreach ($createdOrder->attendees as $attendee) {
+            $this->assertEquals(Attendee::class, get_class($attendee));
+            $this->assertArrayHasKey('emailId', $attendee->toArray());
+            $this->assertArrayHasKey('ticketId', $attendee->toArray());
+            $this->assertArrayHasKey('orderTicket', $attendee->toArray());
+        }
     }
 }

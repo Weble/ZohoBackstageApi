@@ -5,6 +5,7 @@ namespace Weble\ZohoBackstageApi\Modules;
 use Doctrine\Common\Inflector\Inflector;
 use Tightenco\Collect\Support\Collection;
 use Weble\ZohoBackstageApi\Models\Model;
+use Weble\ZohoBackstageApi\Models\Order;
 use Weble\ZohoBackstageApi\OAuthClient;
 
 abstract class Module
@@ -39,9 +40,8 @@ abstract class Module
     protected function createCollectionFromList($list, $key = null, $class = null): Collection
     {
         $collection = new Collection($key ? $list[$key] ?? $list : $list);
-        $collection = $collection->mapWithKeys(function ($item) use ($class) {
-            $item = $this->make($item, $class);
-            return [$item->getId() => $item];
+        $collection = $collection->map(function ($item) use ($class) {
+            return $this->make($item, $class);
         });
 
         return $collection;
@@ -49,13 +49,13 @@ abstract class Module
 
     public function get($id, array $params = [])
     {
-        $item = $this->oAuthClient->get($this->getEndpoint(), $id, $params);
+        $item = $this->oAuthClient->get($this->baseUrl . $this->getEndpoint(), $id, $params);
 
         if (!is_array($item)) {
             return $item;
         }
 
-        $data = array_shift($item[$this->getResourceKey()]);
+        $data = $item[$this->getResourceKey()];
 
         return $this->make($data);
     }

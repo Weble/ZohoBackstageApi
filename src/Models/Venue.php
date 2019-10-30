@@ -23,7 +23,7 @@ class Venue extends Model implements HasTranslations
     {
         return [
             'name',
-            'steet',
+            'street',
             'townOrCity',
             'state',
             'countryName',

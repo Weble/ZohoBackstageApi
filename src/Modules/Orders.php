@@ -3,7 +3,11 @@
 
 namespace Weble\ZohoBackstageApi\Modules;
 
+use Doctrine\Common\Inflector\Inflector;
+use Weble\ZohoBackstageApi\Builders\OrderBuilder;
+use Weble\ZohoBackstageApi\Exceptions\ErrorResponseException;
 use Weble\ZohoBackstageApi\Models\Order;
+use Weble\ZohoBackstageApi\OAuthClient;
 
 class Orders extends Module
 {
@@ -12,52 +16,51 @@ class Orders extends Module
     /** @var string */
     private $tz = self::DEFAULT_TIMEZONE;
 
-    public function setTimeZone($tz): self
-    {
-        $this->tz = $tz;
-        return $this;
-    }
 
     public function getEndpoint(): string
     {
         return 'eventOrders';
     }
 
-    public function create(Order $order, $params = []): Order
+    public function create(OrderBuilder $order, $params = []): Order
     {
-        if (!isset($params['browserTimezone'])) {
-            $params['browserTimezone'] = $this->tz;
-        }
+        $url = $this->baseUrl.Inflector::singularize($this->getEndpoint());
 
-        $data = $this->client->processResult(
-            $this->client->call($this->getEndpoint(), 'POST', [
+        $data = $this
+            ->getClient()
+            ->setApiVersion(OAuthClient::API_V0)
+            ->rawPost($url, [
                 'query' => $params,
                 'json' => [
                     'placeOrder' => $order->toArray()
                 ]
-            ])
-        );
+            ]);
+
+        $this->getClient()->setApiVersion(OAuthClient::API_V1);
+
+        if (isset($data['message'])) {
+            throw new ErrorResponseException('Response from Zoho is not success. Message: '.$data['message']);
+        }
+
+        if (isset($data['errors'])) {
+            throw new ErrorResponseException('Response from Zoho is not success. Message: '.json_encode($data['errors']));
+        }
 
         return new Order($data['order']);
     }
 
-    public function update(Order $order, $params = []): CompletedOrder
+    public function get($id, array $params = []): Order
     {
-        if (!isset($params['browserTimezone'])) {
-            $params['browserTimezone'] = $this->tz;
-        }
+        $item = $this->oAuthClient->get($this->baseUrl.$this->getEndpoint(), $id, $params);
 
-        $data = $this->client->processResult(
-            $this->client->call($this->getEndpoint() . '/' . $order->getId(), 'PUT', [
-                'query' => $params,
-                'json' => [
-                    'currentOrder' => $order->toArray()
-                ]
-            ])
-        );
+        $data = $item[$this->getResourceKey()];
 
-        return new CompletedOrder($data);
+        $data['orderTickets'] = $item['orderTickets'];
+        $data['orderCost'] = $item['orderCost'];
+
+        return $this->make($data);
     }
+
 
     public function getName(): string
     {
@@ -66,7 +69,7 @@ class Orders extends Module
 
     protected function getResourceKey(): string
     {
-        return 'currentOrder';
+        return 'eventOrder';
     }
 
     public function getModelClassName(): string

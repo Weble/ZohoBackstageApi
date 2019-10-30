@@ -2,22 +2,27 @@
 
 namespace Weble\ZohoBackstageApi;
 
+use GuzzleHttp\Client;
 use Psr\Http\Message\ResponseInterface;
 use Weble\ZohoBackstageApi\Exceptions\ErrorResponseException;
 use Weble\ZohoClient\OAuthClient as ZohoOAuthClient;
 
 class OAuthClient
 {
-    const ENDPOINT_CN = 'https://backstage.zoho.com.cn/v1/';
-    const ENDPOINT_EU = 'https://backstage.zoho.eu/v1/';
-    const ENDPOINT_IN = 'https://backstage.zoho.in/v1/';
-    const ENDPOINT_US = 'https://backstage.zoho.com/v1/';
+    const ENDPOINT_CN = 'https://backstage.zoho.com.cn/';
+    const ENDPOINT_EU = 'https://backstage.zoho.eu/';
+    const ENDPOINT_IN = 'https://backstage.zoho.in/';
+    const ENDPOINT_US = 'https://backstage.zoho.com/';
+
+    const API_V0 = '';
+    const API_V1 = 'v1';
+    const DEFAULT_API_VERSION = self::API_V1;
 
     /** @var self */
     protected static $instance;
 
     /**
-     * @var \GuzzleHttp\Client
+     * @var Client
      */
     protected $httpClient;
 
@@ -30,6 +35,11 @@ class OAuthClient
      * @var string
      */
     protected $region = ZohoOAuthClient::DC_US;
+
+    /**
+     * @var string
+     */
+    protected $apiVersion;
 
     /**
      * Client constructor.
@@ -45,8 +55,15 @@ class OAuthClient
         $this->oAuthClient->setRefreshToken($refreshToken);
     }
 
+    public function setApiVersion(string $apiVersion): self
+    {
+        $this->apiVersion = $apiVersion;
+        $this->createClient();
+        return $this;
+    }
+
     /**
-     * @param string $region
+     * @param  string  $region
      * @return $this
      */
     public function setRegion($region = ZohoOAuthClient::DC_US)
@@ -59,11 +76,11 @@ class OAuthClient
     }
 
     /**
-     * @return \GuzzleHttp\Client|string
+     * @return Client|string
      */
     protected function createClient()
     {
-        $this->httpClient = new \GuzzleHttp\Client(['base_uri' => $this->getEndPoint(), 'http_errors' => false]);
+        $this->httpClient = new Client(['base_uri' => $this->getEndPoint(), 'http_errors' => false]);
         return $this->httpClient;
     }
 
@@ -72,19 +89,21 @@ class OAuthClient
      */
     public function getEndPoint()
     {
+        $apiVersionSuffix = $this->apiVersion ? $this->apiVersion.'/' : '';
+
         switch ($this->region) {
             case ZohoOAuthClient::DC_CN:
-                return self::ENDPOINT_CN;
+                return self::ENDPOINT_CN.$apiVersionSuffix;
                 break;
             case ZohoOAuthClient::DC_IN:
-                return self::ENDPOINT_IN;
+                return self::ENDPOINT_IN.$apiVersionSuffix;
                 break;
             case ZohoOAuthClient::DC_EU:
-                return self::ENDPOINT_EU;
+                return self::ENDPOINT_EU.$apiVersionSuffix;
                 break;
             case ZohoOAuthClient::DC_US:
             default:
-                return self::ENDPOINT_US;
+                return self::ENDPOINT_US.$apiVersionSuffix;
                 break;
         }
     }
@@ -92,7 +111,7 @@ class OAuthClient
     /**
      * @return string
      */
-    public function getRegion ()
+    public function getRegion()
     {
         return $this->region;
     }
@@ -104,10 +123,10 @@ class OAuthClient
         );
     }
 
-    public function get($url, $id = null,array $params = [])
+    public function get($url, $id = null, array $params = [])
     {
         if ($id !== null) {
-            $url .= '/' . $id;
+            $url .= '/'.$id;
         }
 
         return $this->processResult(
@@ -115,14 +134,22 @@ class OAuthClient
         );
     }
 
-    public function rawGet($url,array $params = [])
+    public function rawGet($url, array $params = [])
     {
         try {
             $response = $this->httpClient->get($url, $this->getOptions(['query' => $params]));
             return $response->getBody();
         } catch (\InvalidArgumentException $e) {
-            throw new ErrorResponseException('Response from Zoho is not success. Message: ' . $e);
+            throw new ErrorResponseException('Response from Zoho is not success. Message: '.$e);
         }
+    }
+
+    public function rawPost($url, array $params)
+    {
+        return $this->processResult($this->httpClient->post(
+            $url,
+            $this->getOptions($params)
+        ));
     }
 
     public function post($url, array $data = [], array $params = [])
@@ -131,6 +158,7 @@ class OAuthClient
             $url,
             $this->getOptions([
                 'query' => $params,
+                'form_data' => $data
             ])
         ));
     }
@@ -138,7 +166,7 @@ class OAuthClient
     public function put($url, $id = null, array $data = [], array $params = [])
     {
         if ($id !== null) {
-            $url .= '/' . $id;
+            $url .= '/'.$id;
         }
 
         return $this->processResult($this->httpClient->put(
@@ -152,7 +180,7 @@ class OAuthClient
     public function delete($url, $id = null)
     {
         if ($id !== null) {
-            $url .= '/' . $id;
+            $url .= '/'.$id;
         }
 
         return $this->processResult(
@@ -175,7 +203,7 @@ class OAuthClient
         return call_user_func_array([$this->oAuthClient, $name], $arguments);
     }
 
-    protected function processResult(ResponseInterface $response)
+    public function processResult(ResponseInterface $response)
     {
         try {
             $result = json_decode($response->getBody(), true);
@@ -187,7 +215,7 @@ class OAuthClient
             }
 
             $result = [
-                'message' => 'Internal API error: ' . $response->getStatusCode() . ' ' . $response->getReasonPhrase(),
+                'message' => 'Internal API error: '.$response->getStatusCode().' '.$response->getReasonPhrase(),
             ];
         }
 
@@ -198,18 +226,18 @@ class OAuthClient
             }
 
             $result = [
-                'message' => 'Internal API error: ' . $response->getStatusCode() . ' ' . $response->getReasonPhrase(),
+                'message' => 'Internal API error: '.$response->getStatusCode().' '.$response->getReasonPhrase(),
             ];
         }
 
-        //dump($result);
+        dump($this->oAuthClient->getAccessToken());
 
         if (!isset($result['error'])) {
             return $result;
         }
 
 
-        throw new ErrorResponseException('Response from Zoho is not success. Message: ' . $result['error']);
+        throw new ErrorResponseException('Response from Zoho is not success. Message: '.$result['error']);
     }
 
     public static function getInstance($clientId = null, $clientSecret = null, $refreshToken = null): self

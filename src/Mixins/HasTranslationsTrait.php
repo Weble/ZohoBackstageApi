@@ -10,11 +10,12 @@ trait HasTranslationsTrait
     protected $defaultLanguage = 'en';
 
 
-    public function setTranslationsFrom(array $listTranslations): self
+    public function setTranslationsFrom(array $listTranslations, $languageKey = 'eventLanguage'): self
     {
-        foreach ($listTranslations as $languageId => $translations) {
-            $language = $this->availableLanguages[$languageId] ?? $this->defaultLanguage();
-            foreach ($translations as $key => $value) {
+        $languageId = $listTranslations[$languageKey];
+        $language = $this->availableLanguages[$languageId] ?? $this->defaultLanguage();
+        foreach ($listTranslations as $key => $value) {
+            if (in_array($key, $this->translatedFields())) {
                 $this->setTranslation($key, $language, $value);
             }
         }
